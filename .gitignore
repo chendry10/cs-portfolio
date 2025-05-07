@@ -1,15 +1,43 @@
-# Byte-compiled / cache
+# ── Python bytecode ────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
+*$py.class
 
-# Virtual environments
+# ── Virtual environments ───────────────────────────────────────────────────────
+# (adjust if you named your env folder something else)
 venv/
 env/
+ENV/
+env.bak/
+venv.bak/
 
-# IDE files
+# ── Distribution / packaging ───────────────────────────────────────────────────
+*.egg-info/
+dist/
+build/
+
+# ── IDEs / editors ────────────────────────────────────────────────────────────
 .vscode/
 .idea/
+*.sublime-workspace
+*.sublime-project
 
-# OS junk
+# ── Jupyter / IPython ─────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+
+# ── Testing ───────────────────────────────────────────────────────────────────
+.pytest_cache/
+.cache/
+
+# ── OS files ──────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
+
+# ── Logs and databases ─────────────────────────────────────────────────────────
+*.log
+*.sqlite3
+
+# ── Misc ──────────────────────────────────────────────────────────────────────
+# If you ever generate a requirements file automatically, you could ignore it:
+# requirements.txt
+# Or if you check it in, then remove the comment above.
