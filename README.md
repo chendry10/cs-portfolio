@@ -5,7 +5,7 @@ Welcome to my Computer Science portfolio! This repository contains a collection 
 ## Projects
 
 ### 1. Flappy Bird AI
-**Location:** `Flappy Bird/`
+**Location:** `Flappy Bird/src`
 
 A Python implementation of Flappy Bird with an AI agent that learns to play the game using a neural network and genetic algorithm. The project uses Pygame for graphics and Numpy for neural network operations.
 
