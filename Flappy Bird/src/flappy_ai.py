@@ -8,7 +8,7 @@ import numpy as np
 SCREEN_WIDTH, SCREEN_HEIGHT = 400, 600
 BIRD_X = 50
 FPS = 240
-
+#changes traced
 GRAVITY       = 400.0    # px/sec²
 FLAP_VELOCITY = -200.0   # px/sec (instant jump)
 PIPE_SPEED    = 120.0    # px/sec
