@@ -11,7 +11,7 @@ A Python implementation of Flappy Bird with an AI agent that learns to play the 
 
 - **Preview:**
 
-  ![Flappy Bird Gameplay](flappy.gif)
+  ![Flappy Bird Gameplay](FlappyAI.gif)
 
 - **Features:**
   - AI-controlled bird learns to play Flappy Bird autonomously.
