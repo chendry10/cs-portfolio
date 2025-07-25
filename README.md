@@ -20,7 +20,7 @@ A Python implementation of Flappy Bird with an AI agent that learns to play the 
      ```
   2. Run the game:
      ```bash
-     python Flappy\ Bird/src/flappy_ai.py
+     python Flappy Bird/src/flappy_ai.py
      ```
 - **Requirements:** Python 3.7+, Pygame, Numpy
 

@@ -3,6 +3,10 @@ import sys
 import os
 import random
 import numpy as np
+from bird import Bird
+from pipe import Pipe
+from nn import NeuralNetwork
+import argparse
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 SCREEN_WIDTH, SCREEN_HEIGHT = 400, 600
@@ -21,33 +25,6 @@ def get_asset_path(fn):
     return os.path.join(os.path.dirname(__file__), "sprites", fn)
 
 # ─── Neural Network & GA Helpers ────────────────────────────────────────────
-class NeuralNetwork:
-    def __init__(self, in_sz=3, hid_sz=6, out_sz=1):
-        self.W1 = np.random.randn(hid_sz, in_sz)
-        self.b1 = np.zeros((hid_sz, 1))
-        self.W2 = np.random.randn(out_sz, hid_sz)
-        self.b2 = np.zeros((out_sz, 1))
-
-    def forward(self, x):
-        x = x.reshape(-1, 1)
-        a1 = np.tanh(self.W1 @ x + self.b1)
-        z2 = self.W2 @ a1 + self.b2
-        return 1 / (1 + np.exp(-z2))
-
-    def get_weights(self):
-        return np.concatenate([
-            self.W1.flatten(),
-            self.b1.flatten(),
-            self.W2.flatten(),
-            self.b2.flatten(),
-        ])
-
-    def set_weights(self, flat):
-        i = 0
-        for mat in (self.W1, self.b1, self.W2, self.b2):
-            size = mat.size
-            mat[:] = flat[i:i+size].reshape(mat.shape)
-            i += size
 
 def crossover(w1, w2):
     mask = np.random.rand(len(w1)) < 0.5
@@ -59,117 +36,6 @@ def mutate(w, rate=0.1, scale=0.5):
             w[i] += np.random.randn() * scale
 
 # ─── Game Entities ───────────────────────────────────────────────────────────
-class Bird:
-    def __init__(self, brain=None, is_elite=False):
-        self.y = SCREEN_HEIGHT / 2
-        self.speed = 0.0
-        self.angle = 0
-        self.last_flap_time = 0
-
-        # unchanged sprite load
-        self.sprite = pygame.transform.scale(
-            pygame.image.load(get_asset_path('flap.png')),
-            (45, 45)
-        )
-
-        self.brain = brain or NeuralNetwork()
-        self.alive = True
-        self.fitness = 0
-        self.is_elite = is_elite
-
-    def flap(self):
-        self.speed = FLAP_VELOCITY
-        now = pygame.time.get_ticks()
-        self.last_flap_time = now
-        self.angle = min(self.angle + 32, 25)
-
-    def think(self, pipes):
-        nxt = next((p for p in pipes if p.x + p.width > BIRD_X), None)
-        if not nxt: return
-        inp = np.array([
-            self.y / SCREEN_HEIGHT,
-            (nxt.height + nxt.gap/2) / SCREEN_HEIGHT,
-            (nxt.x - BIRD_X) / SCREEN_WIDTH
-        ])
-        if self.brain.forward(inp)[0,0] > 0.5:
-            self.flap()
-
-    def update(self, dt_s, space_pressed, now, GROUND_Y):
-        self.speed += GRAVITY * dt_s
-        self.y += self.speed * dt_s
-
-        # die if you hit ground line or fly off top
-        if self.y > GROUND_Y - self.sprite.get_height() or self.y < 0:
-            self.alive = False
-
-        if space_pressed:
-            self.last_flap_time = now
-            self.angle = min(self.angle + 32, 25)
-        elif now - self.last_flap_time > TILT_DELAY:
-            self.angle = max(self.angle - 1, -25)
-
-    def draw(self, screen):
-        rot = pygame.transform.rotate(self.sprite, self.angle)
-        rect = rot.get_rect(
-            center=self.sprite.get_rect(topleft=(BIRD_X, int(self.y))).center
-        )
-        screen.blit(rot, rect.topleft)
-        if self.is_elite:
-            pygame.draw.circle(
-                screen, (255,0,0), rect.center,
-                max(rect.width, rect.height)//2 + 4, 3
-            )
-
-    def get_mask(self):
-        rot = pygame.transform.rotate(self.sprite, self.angle)
-        rect = rot.get_rect(
-            center=self.sprite.get_rect(topleft=(BIRD_X, int(self.y))).center
-        )
-        return pygame.mask.from_surface(rot), rect
-class Pipe:
-    # Minimum visible bottom‐pipe height (above the ground)
-    MIN_BOTTOM_HEIGHT = 50  
-
-    def __init__(self, x):
-        self.x = x
-        self.width = 50
-        self.passed = False
-
-        # ── Load ground to compute its height ──────────────────────
-        ground_img = pygame.image.load(get_asset_path('ground.png')).convert_alpha()
-        ground_h   = ground_img.get_height()
-
-        # ── Pick height & gap such that bottom pipe ≥ MIN_BOTTOM_HEIGHT ──
-        while True:
-            height = random.randint(200, 350)
-            gap    = random.randint(135, 200)
-            bottom_h = SCREEN_HEIGHT - (height + gap) - ground_h
-            if bottom_h >= Pipe.MIN_BOTTOM_HEIGHT:
-                break
-
-        self.height = height
-        self.gap    = gap
-
-        # ── Top pipe ───────────────────────────────────────────────
-        top_raw = pygame.image.load(get_asset_path('pipe_top.png')).convert_alpha()
-        self.top_img  = pygame.transform.scale(top_raw, (self.width, self.height))
-        self.top_mask = pygame.mask.from_surface(self.top_img)
-
-        # ── Bottom pipe ────────────────────────────────────────────
-        bot_raw = pygame.image.load(get_asset_path('pipe_bottom.png')).convert_alpha()
-        self.bottom_img  = pygame.transform.scale(bot_raw, (self.width, bottom_h))
-        self.bottom_mask = pygame.mask.from_surface(self.bottom_img)
-
-    def update(self, dt_s):
-        self.x -= PIPE_SPEED * dt_s
-
-    def draw(self, screen):
-        # Draw top at the top of the screen
-        screen.blit(self.top_img, (self.x, 0))
-        # Draw bottom just below the gap
-        screen.blit(self.bottom_img, (self.x, self.height + self.gap))
-
-
 
 def check_collision(bird, pipes):
     b_mask, b_rect = bird.get_mask()
@@ -203,7 +69,7 @@ def eval_population(pop, display=False):
     sim_now = 0.0
     SIM_FPS = 60.0
 
-    pipes = [Pipe(SCREEN_WIDTH + i * PIPE_SPACING) for i in range(5)]
+    pipes = [Pipe(SCREEN_WIDTH + i * PIPE_SPACING, display=display) for i in range(5)]
     bg_scroll = ground_scroll = 0
     scroll_speed = PIPE_SPEED
 
@@ -213,7 +79,7 @@ def eval_population(pop, display=False):
             dt_ms = clock.tick(FPS)
             sim_now = pygame.time.get_ticks()
         else:
-            dt_ms = 20000.0 / SIM_FPS
+            dt_ms = 1000.0 / SIM_FPS
             sim_now += dt_ms
 
         dt_s = dt_ms / 1000.0
@@ -240,7 +106,7 @@ def eval_population(pop, display=False):
         for r in rem:
             pipes.remove(r)
         if add:
-            pipes.append(Pipe(pipes[-1].x + PIPE_SPACING))
+            pipes.append(Pipe(pipes[-1].x + PIPE_SPACING, display=display))
 
         # ── Birds update ───────────────────────────────────────────
         for b in pop:
@@ -248,6 +114,24 @@ def eval_population(pop, display=False):
                 b.think(pipes)
                 b.update(dt_s, False, sim_now, GROUND_Y)
                 if check_collision(b, pipes):
+                    b.alive = False
+                # Simple bounding box collision for headless mode
+                if not display:
+                    for p in pipes:
+                        bird_left = BIRD_X
+                        bird_right = BIRD_X + getattr(b, 'width', 34)
+                        pipe_left = p.x
+                        pipe_right = p.x + getattr(p, 'width', 52)
+                        # Check horizontal overlap
+                        if bird_right > pipe_left and bird_left < pipe_right:
+                            # Check vertical overlap with top pipe
+                            if b.y < p.height:
+                                b.alive = False
+                            # Check vertical overlap with bottom pipe
+                            if b.y + getattr(b, 'height', 24) > p.height + p.gap:
+                                b.alive = False
+                # Ground collision check (works for both display and headless)
+                if b.y + getattr(b, 'height', 24) >= GROUND_Y:
                     b.alive = False
 
         # ── Drawing ────────────────────────────────────────────────
@@ -317,13 +201,22 @@ def next_gen(old, hall_of_fame, elite_k=3, reinject_k=3, mrate=0.01):
     return new_pop
 
 def main():
+    parser = argparse.ArgumentParser(description="Flappy Bird AI Trainer")
+    parser.add_argument("--headless", action="store_true", help="Run in headless (no graphics) mode")
+    args = parser.parse_args()
+
+    # Set VISUAL_EVERY based on headless argument
+    if args.headless:
+        VISUAL_EVERY = 0
+    else:
+        VISUAL_EVERY = 1
+
     POP_SIZE, GENS = 150, 40
-    VISUAL_EVERY   = 1
     hall_of_fame   = []
 
-    pop = [Bird() for _ in range(POP_SIZE)]
+    pop = [Bird(brain=NeuralNetwork()) for _ in range(POP_SIZE)]
     for g in range(GENS):
-        do_display = (g % VISUAL_EVERY == 0) or (g == GENS-1)
+        do_display = (VISUAL_EVERY and ((g % VISUAL_EVERY == 0) or (g == GENS-1)))
         print(f"Gen {g+1}/{GENS} — display={'ON' if do_display else 'OFF'}")
         eval_population(pop, display=do_display)
 
@@ -341,7 +234,7 @@ def main():
 
         pop = next_gen(pop, hall_of_fame, elite_k=3, reinject_k=3, mrate=0.04)
 
-    if not do_display:
+    if not VISUAL_EVERY:
         champ = max(pop, key=lambda b: b.fitness)
         eval_population([champ], display=True)
 
