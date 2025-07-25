@@ -42,14 +42,16 @@ class Pipe:
             self.top_mask = pygame.mask.Mask((self.width, self.height))
             self.bottom_mask = pygame.mask.Mask((self.width, bottom_h))
 
-    def update(self, dt):
+    def update(self, dt, speed=120):
         """
         Updates the pipe's horizontal position.
 
         Args:
             dt (float): Time delta in seconds.
+            speed (float): Horizontal speed of the pipe in pixels per second.
+                Defaults to ``120`` which matches the original game speed.
         """
-        self.x -= 120 * dt
+        self.x -= speed * dt
 
     def draw(self, screen):
         """

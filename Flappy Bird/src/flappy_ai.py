@@ -98,7 +98,7 @@ def eval_population(pop, display=False):
         # ── Pipes update ───────────────────────────────────────────
         rem = []; add = False
         for p in pipes:
-            p.update(dt_s)
+            p.update(dt_s, speed=scroll_speed)
             if not p.passed and p.x < BIRD_X:
                 p.passed = True
                 add = True
