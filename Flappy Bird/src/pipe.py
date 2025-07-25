@@ -24,7 +24,7 @@ class Pipe:
         # Always randomize height and gap
         while True:
             self.height = random.randint(200, 350)
-            self.gap = random.randint(135, 200)
+            self.gap = random.randint(120, 170)
             bottom_h = screen_height - (self.height + self.gap) - ground_height
             if bottom_h >= 50:  # MIN_BOTTOM_HEIGHT
                 break

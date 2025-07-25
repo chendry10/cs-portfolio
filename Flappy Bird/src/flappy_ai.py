@@ -18,7 +18,7 @@ FLAP_VELOCITY = -200.0   # px/sec (instant jump)
 PIPE_SPEED    = 120.0    # px/sec
 
 TILT_DELAY    = 500      # ms before tilting down
-PIPE_SPACING  = 200      # horizontal space between pipes
+PIPE_SPACING  = 180      # horizontal space between pipes
 
 # ─── Assets Path ─────────────────────────────────────────────────────────────
 def get_asset_path(fn):
@@ -72,14 +72,17 @@ def eval_population(pop, display=False):
     pipes = [Pipe(SCREEN_WIDTH + i * PIPE_SPACING, display=display) for i in range(5)]
     bg_scroll = ground_scroll = 0
     scroll_speed = PIPE_SPEED
+    pipe_spacing = PIPE_SPACING  # Use a local variable for dynamic spacing
 
     run = True
+    pipes_passed_total = 0  # Track total pipes passed
+    last_report = 0         # Track last report milestone
     while run and any(b.alive for b in pop):
         if display:
             dt_ms = clock.tick(FPS)
             sim_now = pygame.time.get_ticks()
         else:
-            dt_ms = 1000.0 / SIM_FPS
+            dt_ms = 5000.0 / SIM_FPS
             sim_now += dt_ms
 
         dt_s = dt_ms / 1000.0
@@ -101,12 +104,22 @@ def eval_population(pop, display=False):
                 add = True
                 for b in pop:
                     if b.alive: b.fitness += 1
+                pipes_passed_total += 1
+                # Live update every 5000 pipes
+                if pipes_passed_total // 5000 > last_report:
+                    last_report = pipes_passed_total // 5000
+                    print(f"  [Live] Pipes passed: {pipes_passed_total}")
+                # Increase difficulty every 50 pipes
+                if pipes_passed_total % 5 == 0:
+                    scroll_speed += 10  # Increase pipe speed
+                    
+                    print(f"  [Difficulty] PIPE_SPEED: {scroll_speed}, PIPE_SPACING: {pipe_spacing}")
             if p.x + p.width < 0:
                 rem.append(p)
         for r in rem:
             pipes.remove(r)
         if add:
-            pipes.append(Pipe(pipes[-1].x + PIPE_SPACING, display=display))
+            pipes.append(Pipe(pipes[-1].x + pipe_spacing, display=display))
 
         # ── Birds update ───────────────────────────────────────────
         for b in pop:
