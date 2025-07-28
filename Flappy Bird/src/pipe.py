@@ -29,18 +29,18 @@ class Pipe:
             if bottom_h >= 50:  # MIN_BOTTOM_HEIGHT
                 break
 
-        if display:
-            self.top_img = pygame.image.load(os.path.join(os.path.dirname(__file__), "sprites", "pipe_top.png")).convert_alpha()
-            self.top_img = pygame.transform.scale(self.top_img, (self.width, self.height))
-            self.top_mask = pygame.mask.from_surface(self.top_img)
-            self.bottom_img = pygame.image.load(os.path.join(os.path.dirname(__file__), "sprites", "pipe_bottom.png")).convert_alpha()
-            self.bottom_img = pygame.transform.scale(self.bottom_img, (self.width, bottom_h))
-            self.bottom_mask = pygame.mask.from_surface(self.bottom_img)
-        else:
+        # Always load images and create masks for proper collision detection
+        self.top_img = pygame.image.load(os.path.join(os.path.dirname(__file__), "sprites", "pipe_top.png")).convert_alpha()
+        self.top_img = pygame.transform.scale(self.top_img, (self.width, self.height))
+        self.top_mask = pygame.mask.from_surface(self.top_img)
+        self.bottom_img = pygame.image.load(os.path.join(os.path.dirname(__file__), "sprites", "pipe_bottom.png")).convert_alpha()
+        self.bottom_img = pygame.transform.scale(self.bottom_img, (self.width, bottom_h))
+        self.bottom_mask = pygame.mask.from_surface(self.bottom_img)
+        
+        # Clear images in headless mode to save memory
+        if not display:
             self.top_img = None
             self.bottom_img = None
-            self.top_mask = pygame.mask.Mask((self.width, self.height))
-            self.bottom_mask = pygame.mask.Mask((self.width, bottom_h))
 
     def update(self, dt, speed=120):
         """

@@ -18,7 +18,7 @@ FLAP_VELOCITY = -200.0   # px/sec (instant jump)
 PIPE_SPEED    = 120.0    # px/sec
 
 TILT_DELAY    = 500      # ms before tilting down
-PIPE_SPACING  = 180      # horizontal space between pipes
+PIPE_SPACING  = 200      # horizontal space between pipes
 
 # ─── Assets Path ─────────────────────────────────────────────────────────────
 def get_asset_path(fn):
@@ -61,7 +61,10 @@ def eval_population(pop, display=False):
         ground_img.set_colorkey((112, 192, 238))
         GROUND_Y = SCREEN_HEIGHT - ground_img.get_height()
     else:
-        screen = None
+        # Initialize a hidden display for headless mode to allow image loading
+        os.environ['SDL_VIDEODRIVER'] = 'dummy'
+        screen = pygame.display.set_mode((1, 1))
+        font = None
         bg_img = ground_img = None
         GROUND_Y = SCREEN_HEIGHT - 100
 
@@ -109,11 +112,11 @@ def eval_population(pop, display=False):
                 if pipes_passed_total // 5000 > last_report:
                     last_report = pipes_passed_total // 5000
                     print(f"  [Live] Pipes passed: {pipes_passed_total}")
-                # Increase difficulty every 50 pipes
-                if pipes_passed_total % 5 == 0:
-                    scroll_speed += 10  # Increase pipe speed
+                # Increase difficulty every 20 pipes
+                if pipes_passed_total % 20 == 0:
+                    scroll_speed = min(scroll_speed + 5, 170)   # Increase pipe speed more gradually, max 170
                     
-                    print(f"  [Difficulty] PIPE_SPEED: {scroll_speed}, PIPE_SPACING: {pipe_spacing}")
+                    print(f"  [Difficulty] PIPE_SPEED: {scroll_speed}")
             if p.x + p.width < 0:
                 rem.append(p)
         for r in rem:
@@ -126,23 +129,9 @@ def eval_population(pop, display=False):
             if b.alive:
                 b.think(pipes)
                 b.update(dt_s, False, sim_now, GROUND_Y)
+                # Consistent mask-based collision for both modes
                 if check_collision(b, pipes):
                     b.alive = False
-                # Simple bounding box collision for headless mode
-                if not display:
-                    for p in pipes:
-                        bird_left = BIRD_X
-                        bird_right = BIRD_X + getattr(b, 'width', 34)
-                        pipe_left = p.x
-                        pipe_right = p.x + getattr(p, 'width', 52)
-                        # Check horizontal overlap
-                        if bird_right > pipe_left and bird_left < pipe_right:
-                            # Check vertical overlap with top pipe
-                            if b.y < p.height:
-                                b.alive = False
-                            # Check vertical overlap with bottom pipe
-                            if b.y + getattr(b, 'height', 24) > p.height + p.gap:
-                                b.alive = False
                 # Ground collision check (works for both display and headless)
                 if b.y + getattr(b, 'height', 24) >= GROUND_Y:
                     b.alive = False
