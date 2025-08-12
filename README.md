@@ -43,7 +43,7 @@ Due to API tokens and setup complexity, the code here is for reference — it’
 
 - **Preview of the Results:**  
   ![Instagram Account Preview](InstagramScreenshot.png)  
-  *Follow the account:* **[@your_account_name_here](https://instagram.com/ai_memes_fun)**
+  *Follow the account:* **[@ai_memes_fun](https://instagram.com/ai_memes_fun)**
 
 - **Highlights:**
   - Fully autonomous image + caption generation.
