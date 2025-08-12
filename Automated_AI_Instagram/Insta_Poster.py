@@ -18,7 +18,7 @@ from urllib3.util.retry import Retry
 
 # Pillow for format/size fixes
 try:
-    from PIL import Image, ImageOps, ImageFile, ImageColor
+    from PIL import Image, ImageOps, ImageFile, ImageColor, ImageFilter
     ImageFile.LOAD_TRUNCATED_IMAGES = True
 except ImportError as e:
     raise SystemExit("Missing dependency: Pillow. Install with `pip install pillow`") from e
@@ -44,9 +44,9 @@ TEXT_PROMPT_FALLBACK_MODEL = os.getenv("TEXT_FALLBACK_MODEL", "gpt-4o-mini")
 GPT5_REQUEST = (
     "Create a single extremely short meme prompt for gpt-image-1 AND a short, funny Instagram caption. "
     "for that meme (max 1 sentence). "
-    "The meme concept should be extremely funny and be about politics. "
     "It should have the classic white meme text. "
     "The meme concept should be extremely funny and be about politics with prominent political figures. "
+    "The meme text should be extremely far away from the boarder of the image so it does not get cut off"
     "Format EXACTLY as:\nPrompt: <image prompt>\nCaption: <caption>"
 )
 
@@ -55,6 +55,7 @@ IMAGE_PROMPT = (
     "Create a single short meme prompt for gpt-image-1 AND a short, funny Instagram caption "
     "for that meme (max 1 sentence). "
     "The meme concept should be extremely funny and be about politics with prominent political figures "
+    "The meme text should be extremelyfar away from the boarder of the image so it does not get cut off"
     "Format EXACTLY as:\nPrompt: <image prompt>\nCaption: <caption>"
 )
 
@@ -207,6 +208,7 @@ def get_meme_prompt_via_ai(request_text: str, system_style: str | None = None) -
         "for that meme (max 1 sentence). "
         "The meme concept should be extremely funny and be about politics. "
         "It should have the classic white meme text. "
+        "The meme text should be extremely far away from the boarder of the image so it does not get cut off."
         "The meme concept should be extremely funny and be about politics with prominent political figures. "
     )
 
@@ -262,24 +264,62 @@ def gen_gpt_image_to_file(prompt: str, model: str = "gpt-image-1") -> str:
     return tmp_path
 
 # ── IMAGE UTIL ────────────────────────────────────────────────────────────────
-def resize_and_pad_for_instagram(local_path: str, target_size: int = 1080, bg="#ffffff") -> str:
+def resize_exact_for_instagram(local_path: str, width: int = 1080, height: int = 1080) -> str:
+    """
+    Resize to an exact size (e.g., 1080x1080) with NO borders and
+    NO aspect-ratio preservation (distorts non-square images).
+    """
     img = Image.open(local_path)
     img = ImageOps.exif_transpose(img).convert("RGB")
+    out = img.resize((int(width), int(height)), resample=Image.LANCZOS)
 
-    fitted = ImageOps.contain(img, (target_size, target_size), method=Image.LANCZOS)
+    fd, new_path = tempfile.mkstemp(prefix="ig_exact_", suffix=".jpeg"); os.close(fd)
+    out.save(new_path, "JPEG", quality=92, optimize=True, progressive=True, subsampling=2)
+    print(f"Resized EXACT to {width}x{height}: {new_path}")
+    return new_path
 
-    if isinstance(bg, str):
-        bg = ImageColor.getrgb(bg)
-    canvas = Image.new("RGB", (target_size, target_size), bg)
+def prepare_for_instagram_feed(local_path: str,
+                               min_width: int = 1080,
+                               bg_mode: str = "blur",   # "blur" or hex like "#ffffff"
+                               force_ratio: str | None = None,
+                               safe_margin_pct: float = 0.06) -> str:
+    """
+    Aspect-ratio safe method (no cropping, no distortion) with optional blurred background.
+    Kept here in case you want non-distorting behavior.
+    """
+    R_MIN, R_MAX = 0.75, 1.91
+    ratio_map = {"1:1": 1.0, "4:5": 4/5, "3:4": 3/4, "1.91:1": 1.91, "16:9": 16/9}
 
-    paste_x = (target_size - fitted.width) // 2
-    paste_y = (target_size - fitted.height) // 2
-    canvas.paste(fitted, (paste_x, paste_y))
+    img = Image.open(local_path)
+    img = ImageOps.exif_transpose(img).convert("RGB")
+    w, h = img.size
+    r = w / h
 
-    fd, new_path = tempfile.mkstemp(prefix="ig_square_", suffix=".jpeg")
-    os.close(fd)
-    canvas.save(new_path, "JPEG", quality=92, optimize=True, progressive=True, subsampling=2)
-    print(f"Resized and padded image to {target_size}x{target_size}: {new_path}")
+    if force_ratio:
+        target_r = max(min(ratio_map.get(force_ratio.replace(" ", ""), 1.0), R_MAX), R_MIN)
+    else:
+        target_r = min(max(r, R_MIN), R_MAX)
+
+    target_w = int(max(min_width, round(min_width)))
+    target_h = int(round(target_w / target_r))
+
+    if bg_mode == "blur":
+        bg = ImageOps.fit(img, (target_w, target_h), method=Image.LANCZOS)
+        bg = bg.filter(ImageFilter.GaussianBlur(radius=40))
+    else:
+        bg = Image.new("RGB", (target_w, target_h), ImageColor.getrgb(bg_mode))
+
+    inner_w = max(1, int(target_w * (1 - 2 * safe_margin_pct)))
+    inner_h = max(1, int(target_h * (1 - 2 * safe_margin_pct)))
+    fg = ImageOps.contain(img, (inner_w, inner_h), method=Image.LANCZOS)
+
+    paste_x = (target_w - fg.width) // 2
+    paste_y = (target_h - fg.height) // 2
+    bg.paste(fg, (paste_x, paste_y))
+
+    fd, new_path = tempfile.mkstemp(prefix="ig_ready_", suffix=".jpeg"); os.close(fd)
+    bg.save(new_path, "JPEG", quality=92, optimize=True, progressive=True, subsampling=2)
+    print(f"Prepared IG feed (safe) {target_w}x{target_h}: {new_path}")
     return new_path
 
 def ensure_url_fetchable(url: str, timeout: int = 20, max_bytes: int = 4096, attempts: int = 4) -> None:
@@ -536,8 +576,11 @@ if __name__ == "__main__":
                 original_image_path = gen_gpt_image_to_file(meme_prompt, model=IMAGE_MODEL)
                 print("Saved local (jpeg):", original_image_path)
 
-                print("Resizing image for Instagram...")
-                ig_ready_path = resize_and_pad_for_instagram(original_image_path, target_size=1080, bg="#ffffff")
+                print("Resizing EXACTLY to 1080x1080 (no borders, may distort)...")
+                ig_ready_path = resize_exact_for_instagram(original_image_path, width=1080, height=1080)
+                # Non-distorting option:
+                #print("Preparing for IG feed (aspect-ratio safe, no cropping)...")
+                #ig_ready_path = prepare_for_instagram_feed(original_image_path, min_width=1080, bg_mode="blur")
 
                 print("Uploading to host…")
                 TEST_IMAGE_URL = upload_with_fallbacks(ig_ready_path)
