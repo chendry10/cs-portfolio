@@ -356,51 +356,12 @@ def upload_to_catbox(local_path: str, retries: int = 3, backoff: float = 2.0) ->
         time.sleep(backoff * i)
     raise RuntimeError(f"Catbox upload failed after {retries} tries: {last_err}")
 
-def upload_to_0x0(local_path: str, retries: int = 2) -> str:
-    last_err = None
-    for _ in range(retries):
-        try:
-            with open(local_path, "rb") as f:
-                r = SESSION.post("https://0x0.st", files={"file": ("meme.jpg", f, "image/jpeg")}, timeout=60)
-            r.raise_for_status()
-            url = r.text.strip()
-            if url.startswith("http"):
-                return url
-            last_err = f"Unexpected 0x0.st response: {url[:200]}"
-        except Exception as e:
-            last_err = str(e)
-        time.sleep(1.5)
-    raise RuntimeError(f"0x0.st upload failed: {last_err}")
-
-def upload_to_imgur(local_path: str) -> str:
-    client_id = os.getenv("IMGUR_CLIENT_ID")
-    if not client_id:
-        raise RuntimeError("IMGUR_CLIENT_ID not set")
-    headers = {"Authorization": f"Client-ID {client_id}"}
-    with open(local_path, "rb") as f:
-        b64_image = base64.b64encode(f.read()).decode("utf-8")
-    r = SESSION.post("https://api.imgur.com/3/image",
-                     headers=headers, data={"image": b64_image, "type": "base64"}, timeout=60)
-    r.raise_for_status()
-    data = r.json()
-    if not data.get("success"):
-        raise RuntimeError(f"Imgur upload error: {data}")
-    return data["data"]["link"]
-
 def upload_with_fallbacks(local_path: str) -> str:
     hosts = []
     try:
         hosts.append(upload_to_catbox(local_path))
     except Exception as e:
-        _qprint(f"Catbox upload failed: {e}")
-    try:
-        hosts.append(upload_to_0x0(local_path))
-    except Exception as e:
-        _qprint(f"0x0 upload failed: {e}")
-    try:
-        hosts.append(upload_to_imgur(local_path))
-    except Exception as e:
-        _qprint(f"Imgur upload failed: {e}")
+        _qprint(f"Catbox upload failed: {e}")    
 
     for url in hosts:
         try:
