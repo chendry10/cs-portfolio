@@ -1,0 +1,22 @@
+name: Automated Instagram Poster
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 15 * * *' # Runs daily at 3pm UTC
+jobs:
+  post-instagram:
+    runs-on: ubuntu-latest
+    env:
+      INSTA: ${{ secrets.INSTA }}
+      OPENAI: ${{ secrets.OPENAI }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r Automated_AI_Instagram/requirements.txt
+      - name: Run Insta Poster
+        run: python Automated_AI_Instagram/Insta_Poster.py

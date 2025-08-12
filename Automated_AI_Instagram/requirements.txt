@@ -1,0 +1,4 @@
+# Requirements for Automated_AI_Instagram
+pillow
+requests
+openai
