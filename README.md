@@ -41,7 +41,7 @@ A Python automation tool that:
 This was built to run fully automatically every day, generating new memes without any manual work.  
 Due to API tokens and setup complexity, the code here is for reference — it’s not intended for direct reuse without configuration.
 
-- **Preview of the Results:**  
+- **Preview of the Instagram Account:**  
   ![Instagram Account Preview](InstagramScreenshot.png)  
   *Follow the account:* **[@ai_memes_fun](https://instagram.com/ai_memes_fun)**
 
