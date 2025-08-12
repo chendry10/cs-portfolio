@@ -2,7 +2,9 @@ name: Automated Instagram Poster
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 15 * * *' # Runs daily at 3pm UTC
+    - cron: '0 16 * * *'  # 9:00 AM PDT (16:00 UTC)
+    - cron: '0 01 * * *'  # 6:00 PM PDT (01:00 UTC next day)
+
 jobs:
   post-instagram:
     runs-on: ubuntu-latest
