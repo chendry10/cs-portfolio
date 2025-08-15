@@ -8,11 +8,10 @@ import os
 import time
 import json
 import base64
-import random
-import hashlib
+import sys
+import argparse
 import requests
 import tempfile
-from datetime import datetime
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -37,16 +36,18 @@ IMAGE_MODEL = "gpt-image-1"
 
 # Text prompt models
 USE_GPT5_FOR_PROMPT = True
-GPT5_MODEL = "gpt-5"
+GPT5_MODEL = "gpt-4.1-mini"
 TEXT_PROMPT_FALLBACK_MODEL = os.getenv("TEXT_FALLBACK_MODEL", "gpt-4o-mini")
 
 # GPT-5 request includes caption requirement
 GPT5_REQUEST = (
-    "Create a single extremely short meme prompt for gpt-image-1 AND a short, funny Instagram caption. "
+    "Create a single extremely short meme prompt for gpt-image-1 AND a short, funny Instagram caption with relevant hashtags "
     "for that meme (max 1 sentence). "
+    "Use web search to find a recent (within the last 2 days), funny political news event to base the meme on. "
     "It should have the classic white meme text. "
     "The meme concept should be extremely funny and be about politics with prominent political figures. "
-    "The meme text should be extremely far away from the boarder of the image so it does not get cut off"
+    "The meme text should be extremely far away from the boarder of the image so it does not get cut off."
+    "Do not create cartoons."
     "Format EXACTLY as:\nPrompt: <image prompt>\nCaption: <caption>"
 )
 
@@ -59,7 +60,7 @@ IMAGE_PROMPT = (
     "Format EXACTLY as:\nPrompt: <image prompt>\nCaption: <caption>"
 )
 
-QUIET = True
+QUIET = False
 
 TEST_POST = True
 # If you turn off generation, this URL will be used instead:
@@ -87,156 +88,57 @@ def _qprint(*args, **kwargs):
     if not QUIET:
         print(*args, **kwargs)
 
-# ── LOCAL FALLBACKS ───────────────────────────────────────────────────────────
-def local_meme_prompt(seed: int | None = None) -> str:
-    if seed is None:
-        raw = f"{datetime.utcnow().date()}::{os.getenv('COMPUTERNAME','')}{os.getenv('HOSTNAME','')}"
-        seed = int(hashlib.sha256(raw.encode()).hexdigest(), 16) % (10**8)
-    rng = random.Random(seed)
-
-    settings = rng.choice([
-        "bright flat-color cartoon style",
-        "clean vector art style",
-        "soft 3D claymation style",
-        "hand-drawn doodle style with thick outlines",
-        "retro pixel-art style",
-        "minimalist line-art style",
-    ])
-
-    scenarios = [
-        ("student vs alarm clock", '“I’ll be productive… after one last snooze.”'),
-        ("gym newbie avoiding leg day", '“I work legs… alphabetically. L is next week.”'),
-        ("wifi drop mid-game", '“Skill issue? No. Router issue.”'),
-        ("barista on 7th espresso shot", '“Sir this is a specialty coffee lab.”'),
-        ("cat judging human at desk", '“You call that posture?”'),
-        ("laundry day procrastination", '“If I flip it inside-out, it’s basically fresh.”'),
-        ("meal prep container mountain", '“I cooked once. I’m set for 3–5 business weeks.”'),
-        ("overconfident DIY project", '“How hard can it be?” — famous last words.'),
-        ("online class camera off", '“Participating spiritually.”'),
-        ("motivation vs comfy couch", '“Follow your dreams. My dream is a nap.”'),
-    ]
-    subject, caption = rng.choice(scenarios)
-
-    compositions = [
-        "wide angle; main character centered; ample whitespace",
-        "slight top-down view; rule of thirds; generous inner padding",
-        "isometric desk scene; clear center area for text",
-        "medium shot; character left, props right; open mid-frame",
-        "close-up with empty space to the side; safe text area",
-    ]
-    comp = rng.choice(compositions)
-
-    facial = rng.choice([
-        "big eyes, comedic panic",
-        "sleepy half-closed eyes, mouth ajar",
-        "smug grin, one eyebrow raised",
-        "deadpan stare into camera",
-        "determined squint with tiny sweat drop",
-    ])
-
-    props = rng.choice([
-        "sticky notes, spilled coffee, tangled charger",
-        "oversized alarm clock, flailing blanket",
-        "game controller, blinking router, ethernet cable",
-        "towering laundry basket, mismatched socks",
-        "gym bag, unlaced shoes, abandoned water bottle",
-    ])
-
-    return (
-        f"Create a {settings} meme about {subject}. "
-        f"Scene: {comp}. Character expression: {facial}. "
-        f"Props: {props}. "
-        f"Keep ALL text away from top and bottom edges. "
-        f'Place the caption mid-frame: {caption}'
-    )
-
-def local_caption() -> str:
-    captions = [
-        "Mood: eternal.",
-        "It’s a lifestyle.",
-        "Same energy.",
-        "Current status: yes.",
-        "Plot twist: it’s Monday.",
-        "This is fine. Totally fine.",
-        "Not me, definitely not me.",
-        "Relatable level: expert.",
-    ]
-    return random.choice(captions)
 
 # ── OPENAI HELPERS ────────────────────────────────────────────────────────────
-def _try_responses(client, model: str, system: str, user: str, max_tokens: int = 300) -> str | None:
+def _try_responses(client, model: str, system: str, user: str, max_tokens: int = 1000) -> str | None:
     try:
         resp = client.responses.create(
             model=model,
-            instructions=system,
-            input=user,
+            input=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
             max_output_tokens=max_tokens,
+            tools=[{"type": "web_search_preview"}],
+            max_tool_calls=2,
         )
+        print(f"[responses/{model}] Response: {resp}")
         return (getattr(resp, "output_text", "") or "").strip() or None
     except Exception as e:
         _qprint(f"[responses/{model}] {e}")
         return None
 
-def _try_chat(client, model: str, system: str, user: str) -> str | None:
-    try:
-        cc = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-        )
-        return (cc.choices[0].message.content or "").strip() or None
-    except Exception as e:
-        _qprint(f"[chat/{model}] {e}")
-        return None
-
-def get_meme_prompt_via_ai(request_text: str, system_style: str | None = None) -> str:
+def get_meme_prompt_via_ai(request_text: str, system_style: str | None = None, test_mode: bool = False) -> str:
     try:
         from openai import OpenAI
     except Exception:
-        return local_meme_prompt()
+        print("Error occurred while initializing OpenAI client.")
 
     api_key = os.getenv("OPENAI")
     if not api_key:
-        return local_meme_prompt()
+        print("Missing OPENAI env var. Set it before running.")
 
     client = OpenAI(api_key=api_key)
 
     sys_msg = system_style or (
-        "Create a single extremely short meme prompt for gpt-image-1 AND a short, funny Instagram caption. "
-        "for that meme (max 1 sentence). "
-        "The meme concept should be extremely funny and be about politics. "
-        "It should have the classic white meme text. "
-        "The meme text should be extremely far away from the boarder of the image so it does not get cut off."
-        "The meme concept should be extremely funny and be about politics with prominent political figures. "
+        "You are a helpful assistant that generates meme prompts for use in image generation for instagram."
+        "Ensure that the prompt specifies that white meme text should be used on the top and bottom of the image away from the border to avoid being cutoff."
     )
 
-    if USE_GPT5_FOR_PROMPT:
-        out = _try_responses(client, GPT5_MODEL, sys_msg, request_text)
-        if not out:
-            out = _try_chat(client, GPT5_MODEL, sys_msg, request_text)
-        if out:
-            return out
-
-    fb = TEXT_PROMPT_FALLBACK_MODEL
-    out = _try_responses(client, fb, sys_msg, request_text)
+    out = _try_responses(client, GPT5_MODEL, sys_msg, request_text)
     if not out:
-        out = _try_chat(client, fb, sys_msg, request_text)
-    if out:
-        return out
+        _qprint(f"GPT-5 responses failed")
+    return out
 
-    return local_meme_prompt()
 
-def get_meme_prompt_and_caption(request_text: str, system_style: str | None = None) -> tuple[str, str]:
-    raw = get_meme_prompt_via_ai(request_text, system_style)
+def get_meme_prompt_and_caption(request_text: str, system_style: str | None = None, test_mode: bool = False) -> tuple[str, str]:
+    raw = get_meme_prompt_via_ai(request_text, system_style, test_mode=test_mode)
     prompt, caption = raw, None
     if "Caption:" in raw:
         parts = raw.split("Caption:", 1)
         prompt = parts[0].replace("Prompt:", "").strip()
         caption = parts[1].strip()
-    if not caption:
-        caption = local_caption()
+
     return prompt, caption
 
 # ── IMAGE GEN ─────────────────────────────────────────────────────────────────
@@ -249,7 +151,7 @@ def gen_gpt_image_to_file(prompt: str, model: str = "gpt-image-1") -> str:
 
     print(f"Requesting image from model '{model}'...")
     try:
-        resp = client.images.generate(model=model, prompt=prompt, n=1, output_format="jpeg", size="1024x1024")
+        resp = client.images.generate(model=model, prompt=prompt, n=1, output_format="jpeg", size="1024x1024", moderation="low", quality="medium")
     except Exception as e:
         raise RuntimeError(f"OpenAI Image API call failed: {e}") from e
 
@@ -507,6 +409,27 @@ def download_to_temp(url: str) -> str:
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Automated AI Instagram Poster.")
+    parser.add_argument(
+        "-p", "--generate-prompt-only",
+        action="store_true",
+        help="Generate a meme prompt and caption, print it, and exit without posting."
+    )
+    args = parser.parse_args()
+
+    if args.generate_prompt_only:
+        print("── Generating prompt and caption only (no posting, no fallbacks) ──")
+        meme_prompt, caption = get_meme_prompt_and_caption(GPT5_REQUEST, test_mode=True)
+        print("\n" + "="*50)
+        print("  GENERATED PROMPT & CAPTION")
+        print("="*50)
+        print("\n[PROMPT]")
+        print(meme_prompt)
+        print("\n[CAPTION]")
+        print(caption)
+        print("\n" + "="*50)
+        sys.exit(0)
+
     if not ACCESS_TOKEN:
         raise SystemExit("Missing INSTA env var.")
 
@@ -548,7 +471,7 @@ if __name__ == "__main__":
                 print("Public URL:", TEST_IMAGE_URL)
 
             print("\n── Posting image ──")
-            post_image_with_rehosts(ig_user_id, TEST_IMAGE_URL, TEST_CAPTION or local_caption(), src_file_for_rehost=ig_ready_path)
+            post_image_with_rehosts(ig_user_id, TEST_IMAGE_URL, TEST_CAPTION, src_file_for_rehost=ig_ready_path)
 
     except Exception as e:
         raise SystemExit(f"Failed: {e}")
