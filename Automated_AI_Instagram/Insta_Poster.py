@@ -1,8 +1,11 @@
-# Instagram Poster — Live Editor (robust meme prompt + caption generation)
-# - No headlines or web search references
-# - GPT-5 → gpt-4o-mini → local fallback (guaranteed non-empty)
-# - Generates both image prompt & caption
-# - Quiet logging: no noisy GPT errors printed
+# Automated Instagram Poster
+#
+# This script handles the full pipeline:
+# 1. Generates a meme idea + caption using an AI text model (gpt-4.1-mini).
+# 2. Generates an image from the prompt using gpt-image-1.
+# 3. Processes the image (resizes, etc.).
+# 4. Uploads the image to a public host (Catbox).
+# 5. Posts it to a linked Instagram account via the Facebook Graph API.
 
 import os
 import time
@@ -11,6 +14,7 @@ import base64
 import sys
 import argparse
 import requests
+import re
 import tempfile
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -35,17 +39,17 @@ GENERATE_WITH_GPT_IMAGE = True
 IMAGE_MODEL = "gpt-image-1"
 
 # Text prompt models
-USE_GPT5_FOR_PROMPT = True
-GPT5_MODEL = "gpt-4.1-mini"
+USE_PRIMARY_MODEL_FOR_PROMPT = True
+PRIMARY_TEXT_MODEL = "gpt-4.1-mini"
 TEXT_PROMPT_FALLBACK_MODEL = os.getenv("TEXT_FALLBACK_MODEL", "gpt-4o-mini")
 
-# GPT-5 request includes caption requirement
-GPT5_REQUEST = (
+# The main prompt for the text model. It asks for a prompt AND a caption.
+PRIMARY_MODEL_REQUEST = (
     "Create a single extremely short meme prompt for gpt-image-1 AND a short, funny Instagram caption with relevant hashtags "
     "for that meme (max 1 sentence). "
-    "Use web search to find a recent (within the last 2 days), funny political news event to base the meme on. "
+    "Use web search to find a current (within the last day), funny political news event to base the meme on. "
     "It should have the classic white meme text. "
-    "The meme concept should be extremely funny and be about politics with prominent political figures. "
+    "The meme concept should be extremely funny and be about politics. "
     "The meme text should be extremely far away from the boarder of the image so it does not get cut off."
     "Do not create cartoons."
     "Format EXACTLY as:\nPrompt: <image prompt>\nCaption: <caption>"
@@ -65,7 +69,7 @@ QUIET = False
 TEST_POST = True
 # If you turn off generation, this URL will be used instead:
 TEST_IMAGE_URL = "https://knowledge.wharton.upenn.edu/wp-content/uploads/2016/01/compassion-600x440.jpg"
-TEST_CAPTION = None  # will be set dynamically
+TEST_CAPTION = None  # This gets set by the AI if generation is on
 
 # ── HTTP SESSION ──────────────────────────────────────────────────────────────
 def make_session() -> requests.Session:
@@ -90,6 +94,19 @@ def _qprint(*args, **kwargs):
 
 
 # ── OPENAI HELPERS ────────────────────────────────────────────────────────────
+def get_openai_client():
+    """Gets the OpenAI client, or fails if the API key is missing."""
+    try:
+        from openai import OpenAI
+    except ImportError as e:
+        raise SystemExit("Missing dependency: openai. Install with `pip install openai`") from e
+
+    api_key = os.getenv("OPENAI")
+    if not api_key:
+        raise SystemExit("Missing OPENAI env var. Set it before running.")
+
+    return OpenAI(api_key=api_key)
+
 def _try_responses(client, model: str, system: str, user: str, max_tokens: int = 1000) -> str | None:
     try:
         resp = client.responses.create(
@@ -109,45 +126,44 @@ def _try_responses(client, model: str, system: str, user: str, max_tokens: int =
         return None
 
 def get_meme_prompt_via_ai(request_text: str, system_style: str | None = None, test_mode: bool = False) -> str:
-    try:
-        from openai import OpenAI
-    except Exception:
-        print("Error occurred while initializing OpenAI client.")
-
-    api_key = os.getenv("OPENAI")
-    if not api_key:
-        print("Missing OPENAI env var. Set it before running.")
-
-    client = OpenAI(api_key=api_key)
+    client = get_openai_client()
 
     sys_msg = system_style or (
         "You are a helpful assistant that generates meme prompts for use in image generation for instagram."
         "Ensure that the prompt specifies that white meme text should be used on the top and bottom of the image away from the border to avoid being cutoff."
     )
 
-    out = _try_responses(client, GPT5_MODEL, sys_msg, request_text)
+    # This will raise an error and stop the script if the API call fails.
+    out = _try_responses(client, PRIMARY_TEXT_MODEL, sys_msg, request_text)
     if not out:
-        _qprint(f"GPT-5 responses failed")
+        raise RuntimeError(f"Failed to generate prompt with primary model ({PRIMARY_TEXT_MODEL}). No fallbacks are configured.")
     return out
 
 
 def get_meme_prompt_and_caption(request_text: str, system_style: str | None = None, test_mode: bool = False) -> tuple[str, str]:
     raw = get_meme_prompt_via_ai(request_text, system_style, test_mode=test_mode)
-    prompt, caption = raw, None
-    if "Caption:" in raw:
-        parts = raw.split("Caption:", 1)
-        prompt = parts[0].replace("Prompt:", "").strip()
-        caption = parts[1].strip()
+
+    # Use regex for more robust parsing than a simple split()
+    prompt_match = re.search(r"Prompt:\s*(.*?)(?:\nCaption:|$)", raw, re.IGNORECASE | re.DOTALL)
+    caption_match = re.search(r"Caption:\s*(.*)", raw, re.IGNORECASE | re.DOTALL)
+
+    prompt = prompt_match.group(1).strip() if prompt_match else None
+    caption = caption_match.group(1).strip() if caption_match else None
+
+    # If parsing fails for the prompt, it's a critical error.
+    if not prompt:
+        raise RuntimeError(f"Could not parse a 'Prompt:' from the model's output:\n---\n{raw}\n---")
+
+    # If caption parsing fails, just use a default.
+    if caption is None:
+        _qprint("Warning: Could not parse a 'Caption:' from model output. Using a default.")
+        caption = "Funny meme #politics #AI"
 
     return prompt, caption
 
 # ── IMAGE GEN ─────────────────────────────────────────────────────────────────
 def gen_gpt_image_to_file(prompt: str, model: str = "gpt-image-1") -> str:
-    from openai import OpenAI
-    api_key = os.getenv("OPENAI")
-    if not api_key:
-        raise SystemExit("Missing OPENAI env var. Set it before running.")
-    client = OpenAI(api_key=api_key)
+    client = get_openai_client()
 
     print(f"Requesting image from model '{model}'...")
     try:
@@ -325,7 +341,10 @@ def check_token_and_perms():
     if "error" in perms or not perms.get("data"):
         print("Looks like a Page token — skipping user-scope check.")
         return
-    required = {"pages_show_list", "instagram_basic", "instagram_content_publish"}
+    required = {
+        "pages_show_list", "instagram_basic", "instagram_content_publish",
+        "instagram_management", "pages_read_engagement"
+    }
     granted = {p["permission"] for p in perms.get("data", []) if p.get("status") == "granted"}
     missing = required - granted
     if missing:
@@ -363,10 +382,18 @@ def get_ig_user_id(page_id: str) -> str:
     resp = get(f"/{page_id}", fields="instagram_business_account{id,username}")
     ig_obj = resp.get("instagram_business_account")
     if not ig_obj or not ig_obj.get("id"):
-        raise SystemExit(
-            "Page found but no instagram_business_account linked.\n"
-            "Link IG Business to this Page: FB Page Settings → Linked accounts → Instagram."
+        error_message = (
+            "ERROR: Page found but no 'instagram_business_account' is linked or visible.\n\n"
+            "This can happen for a few reasons:\n"
+            "1. The linked Instagram account is not a 'Business' or 'Creator' account.\n"
+            "   -> Please convert it in the Instagram app settings.\n"
+            "2. The Access Token is missing permissions. It needs at least:\n"
+            "   -> instagram_management, pages_read_engagement, instagram_content_publish\n"
+            "3. The API access connection needs to be re-confirmed.\n"
+            "   -> Go to 'Facebook Business Integrations' for your user, remove your app, then re-authenticate.\n\n"
+            f"API Response for page {page_id}:\n{json.dumps(resp, indent=2)}"
         )
+        raise SystemExit(error_message)
     print(f"Linked IG: @{ig_obj.get('username')} (id={ig_obj.get('id')})")
     return ig_obj["id"]
 
@@ -419,7 +446,7 @@ if __name__ == "__main__":
 
     if args.generate_prompt_only:
         print("── Generating prompt and caption only (no posting, no fallbacks) ──")
-        meme_prompt, caption = get_meme_prompt_and_caption(GPT5_REQUEST, test_mode=True)
+        meme_prompt, caption = get_meme_prompt_and_caption(PRIMARY_MODEL_REQUEST, test_mode=True)
         print("\n" + "="*50)
         print("  GENERATED PROMPT & CAPTION")
         print("="*50)
@@ -452,7 +479,7 @@ if __name__ == "__main__":
         if TEST_POST:
             if GENERATE_WITH_GPT_IMAGE:
                 print("\n── Generating meme prompt & caption ──")
-                meme_prompt, TEST_CAPTION = get_meme_prompt_and_caption(GPT5_REQUEST)
+                meme_prompt, TEST_CAPTION = get_meme_prompt_and_caption(PRIMARY_MODEL_REQUEST)
                 print("Using image prompt →", meme_prompt)
                 print("Using caption →", TEST_CAPTION)
 
