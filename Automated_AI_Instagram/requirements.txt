@@ -4,3 +4,5 @@ requests
 openai
 pytest
 pytest-mock
+black
+ruff
