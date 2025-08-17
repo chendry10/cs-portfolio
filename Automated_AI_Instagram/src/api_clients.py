@@ -8,6 +8,7 @@ import logging
 from typing import Optional, Tuple, Dict, Any
 
 from openai import OpenAI
+import requests # Added import
 
 from .utils import SESSION, ensure_url_fetchable
 from . import config as config
@@ -15,7 +16,7 @@ from . import config as config
 
 # ── OPENAI HELPERS ────────────────────────────────────────────────────────────
 def _try_responses(
-    client: Any, model: str, system: str, user: str, max_tokens: int = 1000
+    client: Any, model: str, system: str, user: str, max_tokens: int = 1000, openai_client: Optional[OpenAI] = None
 ) -> Optional[str]:
     try:
         from openai import OpenAI
@@ -27,7 +28,10 @@ def _try_responses(
     if not config.OPENAI_API_KEY:
         raise RuntimeError("Missing OPENAI env var. Set it before running.")
 
-    client = OpenAI(api_key=config.OPENAI_API_KEY)
+    if openai_client: # Use provided client if available
+        client = openai_client
+    else: # Otherwise, create a new one
+        client = OpenAI(api_key=config.OPENAI_API_KEY)
     try:
         resp = client.responses.create(
             model=model,
@@ -122,7 +126,6 @@ def gen_gpt_image_to_file(prompt: str, model: str = "gpt-image-1") -> str:
 
             img_bytes = base64.b64decode(data.b64_json)
             fd, tmp_path = tempfile.mkstemp(prefix="meme_", suffix=".jpeg")
-            os.close(fd)
             with os.fdopen(fd, "wb") as f:
                 f.write(img_bytes)
             return tmp_path
@@ -192,15 +195,14 @@ def post_graph_with_retry(
     for i in range(max_tries):
         try:
             r = SESSION.post(f"{config.BASE_URL}{url}", data=data, timeout=60)
-            if 500 <= r.status_code < 600:
-                logging.error(
-                    f"Server {r.status_code}: {r.text}"
-                )  # Log full response for 5xx errors
-                raise RuntimeError(f"Server {r.status_code}: {r.text[:200]}")
+            r.raise_for_status() # This will raise HTTPError for 4xx/5xx responses
+
             try:
                 j = r.json()
-            except Exception:
-                j = {"error": f"Non-JSON response: {r.status_code}", "text": r.text}
+            except json.JSONDecodeError:
+                # If response is not JSON, it's a non-retryable error
+                raise RuntimeError(f"Non-JSON response: {r.status_code}, text: {r.text}")
+
             if "error" in j:
                 code = (
                     j["error"].get("code") if isinstance(j.get("error"), dict) else None
@@ -209,17 +211,51 @@ def post_graph_with_retry(
                     logging.error(
                         f"POST {url} -> ERROR (4xx):\n{json.dumps(j, indent=2)}"
                     )
-                    return j
-                raise RuntimeError(json.dumps(j)[:300])
+                    return j # Return immediately for 4xx errors
+                else:
+                    # Other errors in JSON, including 5xx from API itself, or other client errors
+                    # These are considered non-retryable if not caught by raise_for_status
+                    raise RuntimeError(json.dumps(j)[:300])
+
             logging.info(f"POST {url} -> OK")
             return j
-        except Exception as e:
+        except requests.exceptions.ConnectionError as e:
             last_err = e
             sleep = base_sleep * (2**i)
             logging.warning(
-                f"POST {url} attempt {i+1}/{max_tries} failed: {e} — retrying in {sleep:.1f}s"
+                f"POST {url} attempt {i+1}/{max_tries} failed: Connection Error — retrying in {sleep:.1f}s"
             )
             time.sleep(sleep)
+        except requests.exceptions.Timeout as e:
+            last_err = e
+            sleep = base_sleep * (2**i)
+            logging.warning(
+                f"POST {url} attempt {i+1}/{max_tries} failed: Timeout Error — retrying in {sleep:.1f}s"
+            )
+            time.sleep(sleep)
+        except requests.exceptions.HTTPError as e:
+            last_err = e
+            if 500 <= e.response.status_code < 600:
+                # Retry for 5xx server errors
+                sleep = base_sleep * (2**i)
+                logging.warning(
+                    f"POST {url} attempt {i+1}/{max_tries} failed: Server {e.response.status_code} — retrying in {sleep:.1f}s"
+                )
+                time.sleep(sleep)
+            else:
+                # Re-raise for 4xx client errors (non-retryable)
+                logging.error(
+                    f"POST {url} -> ERROR (4xx):\n{e.response.text}"
+                )
+                raise RuntimeError(f"Client Error: {e.response.status_code}, {e.response.text[:200]}") from e
+        except RuntimeError as e:
+            # Catch RuntimeErrors raised for non-JSON or other JSON errors
+            # These are non-retryable
+            raise
+        except Exception as e:
+            # Catch any other unexpected exceptions and re-raise as non-retryable
+            raise RuntimeError(f"Unexpected error: {e}") from e
+
     raise RuntimeError(f"POST {url} failed after {max_tries} attempts: {last_err}")
 
 
@@ -273,26 +309,30 @@ def post_image_with_rehosts(
     def try_publish(url_to_use: str) -> Dict[str, Any]:
         container = post(f"/{ig_user_id}/media", image_url=url_to_use, caption=caption)
         if "id" not in container:
-            return container
+            raise RuntimeError(f"Failed to create media container: {container}")
         creation_id = container["id"]
         time.sleep(2)
         published = post(f"/{ig_user_id}/media_publish", creation_id=creation_id)
+        if "id" not in published:
+            raise RuntimeError(f"Failed to publish media: {published}")
         return published
 
-    published = try_publish(image_url)
-    err_msg = published.get("error") if isinstance(published, dict) else None
-    if (isinstance(err_msg, dict) and int(err_msg.get("code", 0)) >= 500) or (
-        "error" in published and not published.get("id")
-    ):
+    try:
+        published = try_publish(image_url)
+    except RuntimeError as e:
         logging.warning(
             "Graph returned error on publish; attempting to rehost and retry..."
         )
         if not src_file_for_rehost:
-            raise RuntimeError("Cannot rehost: no local file path provided.")
+            raise RuntimeError("Cannot rehost: no local file path provided.") from e
         new_url = upload_with_fallbacks(src_file_for_rehost)
         logging.info(f"Rehosted URL: {new_url}")
         ensure_url_fetchable(new_url)
-        published = try_publish(new_url)
+        try: # Added try-except for rehosted publish
+            published = try_publish(new_url)
+        except RuntimeError as rehost_e:
+            # If rehosted publish fails, re-raise the rehost error
+            raise rehost_e
 
     if "id" in published:
         logging.info("Successfully posted to Instagram.")

@@ -19,4 +19,5 @@ def test_resize_exact_for_instagram(sample_image_path):
     assert os.path.exists(output_path)
     img = Image.open(output_path)
     assert img.size == (1080, 1080)
+    img.close() # Explicitly close the image
     os.remove(output_path)
