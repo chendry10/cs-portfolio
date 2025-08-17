@@ -10,8 +10,8 @@ import time
 from openai import OpenAI
 
 from src.utils import SESSION, ensure_url_fetchable
-from .utils import SESSION, ensure_url_fetchable
-from . import config
+from src.utils import SESSION, ensure_url_fetchable
+import src.config as config
 import src.config as config
 
 # ── OPENAI HELPERS ────────────────────────────────────────────────────────────
