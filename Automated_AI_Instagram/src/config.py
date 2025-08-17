@@ -1,4 +1,4 @@
-#Configuration for the Automated AI Instagram Poster.
+# Configuration for the Automated AI Instagram Poster.
 
 import os
 
@@ -41,4 +41,3 @@ PRIMARY_MODEL_REQUEST = (
     "Caption: <funny ≤1 sentence with 2–4 relevant hashtags>"
     "Format EXACTLY as:\nPrompt: <image prompt>\nCaption: <caption>"
 )
-

@@ -1,14 +1,12 @@
 import pytest
 import sys
 from unittest.mock import MagicMock, patch
+import Automated_AI_Instagram.src.config as config
 
 # Mock the openai module before importing src.api_clients
 sys.modules['openai'] = MagicMock()
 sys.modules['openai.resources'] = MagicMock() # For client.responses
 sys.modules['openai.resources.images'] = MagicMock() # For client.images
-
-from Automated_AI_Instagram.src.api_clients import get_meme_prompt_and_caption
-import Automated_AI_Instagram.src.config as config
 
 @pytest.fixture(autouse=True)
 def mock_env_vars(monkeypatch):
