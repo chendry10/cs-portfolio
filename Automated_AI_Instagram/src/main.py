@@ -5,7 +5,7 @@ import argparse
 import os
 import sys
 
-import config
+import src.config as config
 from api_clients import (
     get_ig_user_id,
     get_meme_prompt_and_caption,

@@ -33,26 +33,74 @@ A Python implementation of Flappy Bird with an AI agent that learns to play the 
 
 ### 2. Instagram Poster (Automated Meme Generator & Uploader)
 
-A Python automation tool that:
-1. Uses GPT-5 to generate unique meme image prompts and captions.
-2. Creates the meme image with `gpt-image-1`.
-3. Posts it directly to Instagram via the Instagram Graph API.
+This project is a sophisticated Python automation tool designed to autonomously generate and post political memes to Instagram. It leverages cutting-edge AI models to create unique content and integrates seamlessly with the Instagram Graph API for automated publishing.
 
-This was built to run fully automatically every day, generating new memes without any manual work.  
-Due to API tokens and setup complexity, the code here is for reference — it’s not intended for direct reuse without configuration.
+**Key Features:**
+*   **AI-Powered Content Generation:** Utilizes OpenAI's GPT-4.1-mini for meme idea and caption generation, and gpt-image-1 for image creation based on current political headlines.
+*   **Automated Image Processing:** Handles image resizing and optimization for Instagram's specifications using the Pillow library.
+*   **Robust API Integration:** Communicates with the Facebook Graph API for secure and reliable posting to a linked Instagram Business Account.
+*   **Continuous Integration & Deployment (CI/CD):** Configured with GitHub Actions to automate testing on Pull Requests and schedule daily meme generation and posting.
+*   **Modular and Maintainable Code:** Refactored into a clean, multi-file structure (`src/main.py`, `src/config.py`, `src/utils.py`, `src/api_clients.py`) for improved readability and maintainability.
 
-- **Preview of the Instagram Account:**  
-  ![Instagram Account Preview](InstagramScreenshot.png)  
-  *Follow the account:* **[@ai_memes_fun](https://instagram.com/ai_memes_fun)**
+**Preview of the Instagram Account:**  
+![Instagram Account Preview](InstagramScreenshot.png)  
+*Follow the account:* **[@ai_memes_fun](https://instagram.com/ai_memes_fun)**
 
-- **Highlights:**
-  - Fully autonomous image + caption generation.
-  - Consistent posting schedule.
-  - Designed for political humor 
+**Technologies Used:**
+*   Python 3.11+
+*   OpenAI API (GPT-4.1-mini, gpt-image-1)
+*   Facebook Graph API
+*   Pillow (PIL)
+*   Requests
+*   Pytest (for testing)
+*   GitHub Actions (for CI/CD)
 
----
+**Setup and Local Execution:**
 
-## About
+To set up and run this project locally, follow these steps:
 
-This portfolio is a work in progress and will be updated with new projects and improvements.  
-Feel free to explore the code, try out the flappy bird AI, and reach out if you have any questions!
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/chendry10/cs-portfolio.git
+    cd cs-portfolio/Automated_AI_Instagram
+    ```
+2.  **Create a virtual environment (recommended):**
+    ```bash
+    python -m venv venv
+    source venv/bin/activate  # On Windows: .venv\Scripts\activate
+    ```
+3.  **Install dependencies:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+4.  **Configure Environment Variables:**
+    Create a `.env` file in the `Automated_AI_Instagram` directory with your API keys:
+    ```
+    INSTA="YOUR_INSTAGRAM_ACCESS_TOKEN"
+    OPENAI="YOUR_OPENAI_API_KEY"
+    ```
+    *   **INSTA:** Your Facebook Graph API Access Token with necessary permissions (instagram_basic, instagram_content_publish, pages_read_engagement, pages_show_list, instagram_management). This should be a Page Access Token for your Instagram Business Account.
+    *   **OPENAI:** Your OpenAI API Key.
+
+5.  **Run the script locally:**
+    ```bash
+    python src/main.py
+    ```
+    To generate only a prompt and caption without posting:
+    ```bash
+    python src/main.py -p
+    ```
+
+6.  **Run the tests locally:**
+    ```bash
+    python -m pytest tests
+    ```
+
+**GitHub Actions Integration:**
+
+This project uses GitHub Actions for automated testing and deployment:
+
+*   `.github/workflows/test_pr.yml`: This workflow runs all automated tests whenever a Pull Request is opened or updated against the `main` branch. This ensures that new code changes do not introduce regressions.
+*   `.github/workflows/insta_poster.yml`: This workflow is responsible for the daily, automated generation and posting of memes to Instagram. It runs on a schedule (daily at 3 PM UTC) and does not include the test suite, focusing solely on the production task.
+
+

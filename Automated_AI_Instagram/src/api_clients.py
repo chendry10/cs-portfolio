@@ -7,8 +7,12 @@ import re
 import tempfile
 import time
 
-from utils import SESSION, ensure_url_fetchable
-import config
+from openai import OpenAI
+
+from src.utils import SESSION, ensure_url_fetchable
+from src.utils import SESSION, ensure_url_fetchable
+import src.config as config
+import src.config as config
 
 # ── OPENAI HELPERS ────────────────────────────────────────────────────────────
 def _try_responses(client, model: str, system: str, user: str, max_tokens: int = 1000) -> str | None:
@@ -217,7 +221,6 @@ def post_image_with_rehosts(ig_user_id: str, image_url: str, caption: str, src_f
             raise SystemExit("Cannot rehost: no local file path provided.")
         new_url = upload_with_fallbacks(src_file_for_rehost)
         print("Rehosted URL:", new_url)
-        from utils import ensure_url_fetchable
         ensure_url_fetchable(new_url)
         published = try_publish(new_url)
 
