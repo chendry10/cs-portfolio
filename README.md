@@ -82,17 +82,19 @@ To set up and run this project locally, follow these steps:
     *   **OPENAI:** Your OpenAI API Key.
 
 5.  **Run the script locally:**
+    From the *repository root* (`cs-portfolio`):
     ```bash
-    python src/main.py
+    python -m Automated_AI_Instagram.src.main
     ```
     To generate only a prompt and caption without posting:
     ```bash
-    python src/main.py -p
+    python -m Automated_AI_Instagram.src.main -p
     ```
 
 6.  **Run the tests locally:**
+    From the *repository root* (`cs-portfolio`):
     ```bash
-    python -m pytest tests
+    python -m pytest Automated_AI_Instagram/tests
     ```
 
 **GitHub Actions Integration:**

@@ -9,10 +9,8 @@ import time
 
 from openai import OpenAI
 
-from src.utils import SESSION, ensure_url_fetchable
 from .utils import SESSION, ensure_url_fetchable
-from . import config
-import src.config as config
+from . import config as config
 
 # ── OPENAI HELPERS ────────────────────────────────────────────────────────────
 def _try_responses(client, model: str, system: str, user: str, max_tokens: int = 1000) -> str | None:

@@ -4,8 +4,14 @@ import argparse
 import os
 import sys
 
-from . import config
-from .api_clients import (
+# Add the parent directory of src (Automated_AI_Instagram) to sys.path
+script_dir = os.path.dirname(__file__)
+parent_dir = os.path.abspath(os.path.join(script_dir, '..')) # This is Automated_AI_Instagram
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+import src.config as config
+from src.api_clients import (
     get_ig_user_id,
     get_meme_prompt_and_caption,
     gen_gpt_image_to_file,
@@ -13,7 +19,7 @@ from .api_clients import (
     upload_with_fallbacks,
     get_page_id,
 )
-from .utils import resize_exact_for_instagram
+from src.utils import resize_exact_for_instagram
 
 
 def main():

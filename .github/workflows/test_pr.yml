@@ -17,10 +17,9 @@ jobs:
         with:
           python-version: '3.11'
       - name: Set PYTHONPATH
-        run: echo "PYTHONPATH=$GITHUB_WORKSPACE/Automated_AI_Instagram" >> $GITHUB_ENV
+        run: echo "PYTHONPATH=$GITHUB_WORKSPACE/Automated_AI_Instagram:$PYTHONPATH" >> $GITHUB_ENV
       - name: Install dependencies
         run: pip install -r Automated_AI_Instagram/requirements.txt
 
       - name: Run tests
-        run: python -m pytest tests
-        working-directory: Automated_AI_Instagram
+        run: python -m pytest Automated_AI_Instagram/tests
