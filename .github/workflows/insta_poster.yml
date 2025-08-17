@@ -21,4 +21,4 @@ jobs:
       - name: Install dependencies
         run: pip install -r Automated_AI_Instagram/requirements.txt
       - name: Run Insta Poster
-        run: python src/main.py
+        run: python -m src.main
