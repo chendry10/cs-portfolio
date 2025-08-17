@@ -100,6 +100,6 @@ To set up and run this project locally, follow these steps:
 This project uses GitHub Actions for automated testing and deployment:
 
 *   `.github/workflows/test_pr.yml`: This workflow runs all automated tests whenever a Pull Request is opened or updated against the `main` branch. This ensures that new code changes do not introduce regressions.
-*   `.github/workflows/insta_poster.yml`: This workflow is responsible for the daily, automated generation and posting of memes to Instagram. It runs on a schedule (daily at 3 PM UTC) and does not include the test suite, focusing solely on the production task.
+*   `.github/workflows/insta_poster.yml`: This workflow is responsible for the daily, automated generation and posting of memes to Instagram and it runs on a schedule.
 
 
