@@ -10,8 +10,8 @@ import time
 from openai import OpenAI
 
 from src.utils import SESSION, ensure_url_fetchable
-from src.utils import SESSION, ensure_url_fetchable
-import src.config as config
+from .utils import SESSION, ensure_url_fetchable
+from . import config
 import src.config as config
 
 # ── OPENAI HELPERS ────────────────────────────────────────────────────────────
@@ -79,25 +79,34 @@ def get_meme_prompt_and_caption(request_text: str, system_style: str | None = No
 # ── IMAGE GEN ─────────────────────────────────────────────────────────────────
 def gen_gpt_image_to_file(prompt: str, model: str = "gpt-image-1") -> str:
     import os
-    from openai import OpenAI
+    from openai import APIStatusError
 
     client = OpenAI(api_key=config.OPENAI_API_KEY)
 
-    print(f"Requesting image from model '{model}'...")
-    try:
-        resp = client.images.generate(model=model, prompt=prompt, n=1, output_format="jpeg", size="1024x1024", moderation="low", quality="medium")
-    except Exception as e:
-        raise RuntimeError(f"OpenAI Image API call failed: {e}") from e
+    max_retries = 5
+    for attempt in range(max_retries):
+        print(f"Requesting image from model '{model}' (Attempt {attempt + 1}/{max_retries})...")
+        try:
+            resp = client.images.generate(model=model, prompt=prompt, n=1, output_format="jpeg", size="1024x1024", moderation="low", quality="medium")
+            data = resp.data[0]
+            if not hasattr(data, "b64_json") or not data.b64_json:
+                raise RuntimeError("Image API did not return base64 content.")
 
-    data = resp.data[0]
-    if not hasattr(data, "b64_json") or not data.b64_json:
-        raise RuntimeError("Image API did not return base64 content.")
+            img_bytes = base64.b64decode(data.b64_json)
+            fd, tmp_path = tempfile.mkstemp(prefix="meme_", suffix=".jpeg")
+            with os.fdopen(fd, "wb") as f:
+                f.write(img_bytes)
+            return tmp_path
+        except APIStatusError as e:
+            if e.status_code == 400 and "moderation_blocked" in str(e):
+                print(f"Image generation blocked by safety system. Retrying... (Error: {e})")
+                time.sleep(2 ** attempt) # Exponential backoff
+            else:
+                raise RuntimeError(f"OpenAI Image API call failed: {e}") from e
+        except Exception as e:
+            raise RuntimeError(f"OpenAI Image API call failed: {e}") from e
 
-    img_bytes = base64.b64decode(data.b64_json)
-    fd, tmp_path = tempfile.mkstemp(prefix="meme_", suffix=".jpeg")
-    with os.fdopen(fd, "wb") as f:
-        f.write(img_bytes)
-    return tmp_path
+    raise RuntimeError(f"Failed to generate image after {max_retries} attempts due to moderation blocks.")
 
 # ── HOST UPLOADERS ────────────────────────────────────────────────────────────
 def upload_to_catbox(local_path: str, retries: int = 3, backoff: float = 2.0) -> str:

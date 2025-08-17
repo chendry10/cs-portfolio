@@ -1,4 +1,3 @@
-
 #Configuration for the Automated AI Instagram Poster.
 
 import os

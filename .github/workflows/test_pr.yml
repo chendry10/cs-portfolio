@@ -16,7 +16,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=$GITHUB_WORKSPACE/Automated_AI_Instagram" >> $GITHUB_ENV
       - name: Install dependencies
         run: pip install -r Automated_AI_Instagram/requirements.txt
 

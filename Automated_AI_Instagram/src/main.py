@@ -1,12 +1,11 @@
 #Main script for the Automated AI Instagram Poster.
 
-
 import argparse
 import os
 import sys
 
-import src.config as config
-from api_clients import (
+from . import config
+from .api_clients import (
     get_ig_user_id,
     get_meme_prompt_and_caption,
     gen_gpt_image_to_file,
@@ -14,7 +13,7 @@ from api_clients import (
     upload_with_fallbacks,
     get_page_id,
 )
-from utils import resize_exact_for_instagram
+from .utils import resize_exact_for_instagram
 
 
 def main():
