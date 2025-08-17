@@ -7,7 +7,7 @@ import re
 import tempfile
 import time
 
-from utils import SESSION, ensure_url_fetchable
+from src.utils import SESSION, ensure_url_fetchable, ensure_url_fetchable
 import config
 
 # ── OPENAI HELPERS ────────────────────────────────────────────────────────────
@@ -217,7 +217,6 @@ def post_image_with_rehosts(ig_user_id: str, image_url: str, caption: str, src_f
             raise SystemExit("Cannot rehost: no local file path provided.")
         new_url = upload_with_fallbacks(src_file_for_rehost)
         print("Rehosted URL:", new_url)
-        from utils import ensure_url_fetchable
         ensure_url_fetchable(new_url)
         published = try_publish(new_url)
 

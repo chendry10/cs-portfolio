@@ -1,4 +1,7 @@
 # Requirements for Automated_AI_Instagram
 pillow
 requests
+Pillow
 openai
+pytest
+pytest-mock
