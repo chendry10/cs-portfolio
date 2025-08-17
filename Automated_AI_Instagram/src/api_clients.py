@@ -7,7 +7,10 @@ import re
 import tempfile
 import time
 
-from src.utils import SESSION, ensure_url_fetchable, ensure_url_fetchable
+from openai import OpenAI
+
+from src.utils import SESSION, ensure_url_fetchable
+import src.config as config, ensure_url_fetchable
 import src.config as config
 
 # ── OPENAI HELPERS ────────────────────────────────────────────────────────────
