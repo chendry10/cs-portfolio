@@ -22,3 +22,4 @@ jobs:
         run: pip install -r Automated_AI_Instagram/requirements.txt
       - name: Run Insta Poster
         run: python -m src.main
+        working-directory: Automated_AI_Instagram
