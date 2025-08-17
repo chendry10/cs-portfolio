@@ -150,6 +150,7 @@ def post_graph_with_retry(url: str, data: dict, max_tries: int = 6, base_sleep: 
         try:
             r = SESSION.post(f"{config.BASE_URL}{url}", data=data, timeout=60)
             if 500 <= r.status_code < 600:
+                print(f"Server {r.status_code}: {r.text}") # Log full response for 5xx errors
                 raise RuntimeError(f"Server {r.status_code}: {r.text[:200]}")
             try:
                 j = r.json()
