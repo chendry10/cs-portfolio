@@ -46,7 +46,7 @@ This project is a sophisticated Python automation tool designed to autonomously 
 *Follow the account:* **[@ai_memes_fun](https://instagram.com/ai_memes_fun)**
 
 **Technologies Used:**
-*   Python 3.11+
+*   Python
 *   OpenAI API (GPT-4.1-mini, gpt-image-1)
 *   Facebook Graph API
 *   Pillow (PIL)
