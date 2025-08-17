@@ -40,7 +40,6 @@ This project is a sophisticated Python automation tool designed to autonomously 
 *   **Automated Image Processing:** Handles image resizing and optimization for Instagram's specifications using the Pillow library.
 *   **Robust API Integration:** Communicates with the Facebook Graph API for secure and reliable posting to a linked Instagram Business Account.
 *   **Continuous Integration & Deployment (CI/CD):** Configured with GitHub Actions to automate testing on Pull Requests and schedule daily meme generation and posting.
-*   **Modular and Maintainable Code:** Refactored into a clean, multi-file structure (`src/main.py`, `src/config.py`, `src/utils.py`, `src/api_clients.py`) for improved readability and maintainability.
 
 **Preview of the Instagram Account:**  
 ![Instagram Account Preview](InstagramScreenshot.png)  
