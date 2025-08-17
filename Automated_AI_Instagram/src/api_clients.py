@@ -6,6 +6,7 @@ import json
 import re
 import tempfile
 import time
+from typing import Optional, Tuple, Dict, Any
 
 from openai import OpenAI
 
@@ -13,7 +14,7 @@ from .utils import SESSION, ensure_url_fetchable
 from . import config as config
 
 # ── OPENAI HELPERS ────────────────────────────────────────────────────────────
-def _try_responses(client, model: str, system: str, user: str, max_tokens: int = 1000) -> str | None:
+def _try_responses(client: Any, model: str, system: str, user: str, max_tokens: int = 1000) -> Optional[str]:
     try:
         from openai import OpenAI
     except ImportError as e:
@@ -41,7 +42,7 @@ def _try_responses(client, model: str, system: str, user: str, max_tokens: int =
         print(f"[responses/{model}] {e}")
         return None
 
-def get_meme_prompt_via_ai(request_text: str, system_style: str | None = None, test_mode: bool = False) -> str:
+def get_meme_prompt_via_ai(request_text: str, system_style: Optional[str] = None, test_mode: bool = False) -> str:
     sys_msg = system_style or (
         "You are a helpful assistant that generates meme prompts for use in image generation for instagram."
         "Ensure that the prompt specifies that white meme text should be used on the top and bottom of the image away from the border to avoid being cutoff."
@@ -53,7 +54,7 @@ def get_meme_prompt_via_ai(request_text: str, system_style: str | None = None, t
         raise RuntimeError(f"Failed to generate prompt with primary model ({config.PRIMARY_TEXT_MODEL}). No fallbacks are configured.")
     return out
 
-def get_meme_prompt_and_caption(request_text: str, system_style: str | None = None, test_mode: bool = False) -> tuple[str, str]:
+def get_meme_prompt_and_caption(request_text: str, system_style: Optional[str] = None, test_mode: bool = False) -> Tuple[str, str]:
     raw = get_meme_prompt_via_ai(request_text, system_style, test_mode=test_mode)
 
     # Use regex for more robust parsing than a simple split()
@@ -142,7 +143,7 @@ def upload_with_fallbacks(local_path: str) -> str:
     raise SystemExit("All host uploads failed.")
 
 # ── GRAPH API HELPERS ─────────────────────────────────────────────────────────
-def post_graph_with_retry(url: str, data: dict, max_tries: int = 6, base_sleep: float = 1.2):
+def post_graph_with_retry(url: str, data: Dict[str, Any], max_tries: int = 6, base_sleep: float = 1.2) -> Dict[str, Any]:
     last_err = None
     for i in range(max_tries):
         try:
@@ -169,7 +170,7 @@ def post_graph_with_retry(url: str, data: dict, max_tries: int = 6, base_sleep: 
             time.sleep(sleep)
     raise SystemExit(f"POST {url} failed after {max_tries} attempts: {last_err}")
 
-def get(url, **params):
+def get(url: str, **params: Any) -> Dict[str, Any]:
     params["access_token"] = config.ACCESS_TOKEN
     r = SESSION.get(f"{config.BASE_URL}{url}", params=params, timeout=30)
     try:
@@ -182,7 +183,7 @@ def get(url, **params):
         print(f"GET {url} -> OK")
     return j
 
-def post(url, **data):
+def post(url: str, **data: Any) -> Dict[str, Any]:
     data["access_token"] = config.ACCESS_TOKEN
     return post_graph_with_retry(url, data)
 
@@ -211,8 +212,8 @@ def get_ig_user_id(page_id: str) -> str:
 
 
 
-def post_image_with_rehosts(ig_user_id: str, image_url: str, caption: str, src_file_for_rehost: str | None) -> dict:
-    def try_publish(url_to_use: str) -> dict:
+def post_image_with_rehosts(ig_user_id: str, image_url: str, caption: str, src_file_for_rehost: Optional[str]) -> Dict[str, Any]:
+    def try_publish(url_to_use: str) -> Dict[str, Any]:
         container = post(f"/{ig_user_id}/media", image_url=url_to_use, caption=caption)
         if "id" not in container:
             return container

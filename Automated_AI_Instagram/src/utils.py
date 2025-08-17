@@ -8,6 +8,7 @@ import time
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from typing import Any
 
 try:
     from PIL import Image, ImageOps, ImageFile

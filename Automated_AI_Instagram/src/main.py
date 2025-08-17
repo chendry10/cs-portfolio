@@ -3,6 +3,8 @@
 import argparse
 import os
 import sys
+from typing import Optional
+
 
 # Add the parent directory of src (Automated_AI_Instagram) to sys.path
 script_dir = os.path.dirname(__file__)
@@ -22,7 +24,7 @@ from src.api_clients import (
 from src.utils import resize_exact_for_instagram
 
 
-def main():
+def main() -> None:
     """Main function to run the Instagram poster."""
     parser = argparse.ArgumentParser(description="Automated AI Instagram Poster.")
     parser.add_argument(
@@ -30,10 +32,12 @@ def main():
         action="store_true",
         help="Generate a meme prompt and caption, print it, and exit without posting."
     )
-    args = parser.parse_args()
+    args: argparse.Namespace = parser.parse_args()
 
     if args.generate_prompt_only:
         print("Generating prompt and caption only...")
+        meme_prompt: str
+        caption: str
         meme_prompt, caption = get_meme_prompt_and_caption(config.PRIMARY_MODEL_REQUEST, test_mode=True)
         print(f"\nPrompt: {meme_prompt}\n\nCaption: {caption}\n")
         sys.exit(0)
@@ -41,19 +45,15 @@ def main():
     if not config.ACCESS_TOKEN:
         raise SystemExit("Missing INSTA env var.")
 
-    
-
     print("\nResolving Page ID...")
-    page_id = get_page_id()
+    page_id: str = get_page_id()
     print(f"Using Page ID: {page_id}")
 
     print("\nResolving IG user id...")
-    ig_user_id = get_ig_user_id(page_id)
+    ig_user_id: str = get_ig_user_id(page_id)
 
-    
-
-    original_image_path = None
-    ig_ready_path = None
+    original_image_path: Optional[str] = None
+    ig_ready_path: Optional[str] = None
     try:
         if config.TEST_POST:
             if config.GENERATE_WITH_GPT_IMAGE:
