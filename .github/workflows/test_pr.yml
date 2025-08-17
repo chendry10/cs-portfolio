@@ -21,4 +21,5 @@ jobs:
         run: pip install -r Automated_AI_Instagram/requirements.txt
 
       - name: Run tests
-        run: python -m pytest Automated_AI_Instagram/tests
+        run: python -m pytest tests
+        working-directory: Automated_AI_Instagram
