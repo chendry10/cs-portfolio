@@ -8,7 +8,7 @@ import logging
 from typing import Optional, Tuple, Dict, Any
 
 from openai import OpenAI
-import requests # Added import
+import requests  # Added import
 
 from .utils import SESSION, ensure_url_fetchable
 from . import config as config
@@ -16,7 +16,12 @@ from . import config as config
 
 # ── OPENAI HELPERS ────────────────────────────────────────────────────────────
 def _try_responses(
-    client: Any, model: str, system: str, user: str, max_tokens: int = 1000, openai_client: Optional[OpenAI] = None
+    client: Any,
+    model: str,
+    system: str,
+    user: str,
+    max_tokens: int = 1000,
+    openai_client: Optional[OpenAI] = None,
 ) -> Optional[str]:
     try:
         from openai import OpenAI
@@ -28,9 +33,9 @@ def _try_responses(
     if not config.OPENAI_API_KEY:
         raise RuntimeError("Missing OPENAI env var. Set it before running.")
 
-    if openai_client: # Use provided client if available
+    if openai_client:  # Use provided client if available
         client = openai_client
-    else: # Otherwise, create a new one
+    else:  # Otherwise, create a new one
         client = OpenAI(api_key=config.OPENAI_API_KEY)
     try:
         resp = client.responses.create(
@@ -195,13 +200,15 @@ def post_graph_with_retry(
     for i in range(max_tries):
         try:
             r = SESSION.post(f"{config.BASE_URL}{url}", data=data, timeout=60)
-            r.raise_for_status() # This will raise HTTPError for 4xx/5xx responses
+            r.raise_for_status()  # This will raise HTTPError for 4xx/5xx responses
 
             try:
                 j = r.json()
             except json.JSONDecodeError:
                 # If response is not JSON, it's a non-retryable error
-                raise RuntimeError(f"Non-JSON response: {r.status_code}, text: {r.text}")
+                raise RuntimeError(
+                    f"Non-JSON response: {r.status_code}, text: {r.text}"
+                )
 
             if "error" in j:
                 code = (
@@ -211,7 +218,7 @@ def post_graph_with_retry(
                     logging.error(
                         f"POST {url} -> ERROR (4xx):\n{json.dumps(j, indent=2)}"
                     )
-                    return j # Return immediately for 4xx errors
+                    return j  # Return immediately for 4xx errors
                 else:
                     # Other errors in JSON, including 5xx from API itself, or other client errors
                     # These are considered non-retryable if not caught by raise_for_status
@@ -244,11 +251,11 @@ def post_graph_with_retry(
                 time.sleep(sleep)
             else:
                 # Re-raise for 4xx client errors (non-retryable)
-                logging.error(
-                    f"POST {url} -> ERROR (4xx):\n{e.response.text}"
-                )
-                raise RuntimeError(f"Client Error: {e.response.status_code}, {e.response.text[:200]}") from e
-        except RuntimeError as e:
+                logging.error(f"POST {url} -> ERROR (4xx):\n{e.response.text}")
+                raise RuntimeError(
+                    f"Client Error: {e.response.status_code}, {e.response.text[:200]}"
+                ) from e
+        except RuntimeError:
             # Catch RuntimeErrors raised for non-JSON or other JSON errors
             # These are non-retryable
             raise
@@ -328,7 +335,7 @@ def post_image_with_rehosts(
         new_url = upload_with_fallbacks(src_file_for_rehost)
         logging.info(f"Rehosted URL: {new_url}")
         ensure_url_fetchable(new_url)
-        try: # Added try-except for rehosted publish
+        try:  # Added try-except for rehosted publish
             published = try_publish(new_url)
         except RuntimeError as rehost_e:
             # If rehosted publish fails, re-raise the rehost error
