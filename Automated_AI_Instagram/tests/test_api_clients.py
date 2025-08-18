@@ -370,3 +370,100 @@ def test_post_graph_with_retry_error_in_json_response(monkeypatch, caplog):
                 post_graph_with_retry("/test_url", {"data": "some_data"})
             assert mock_post_session.call_count == 1
             assert mock_sleep.call_count == 0
+
+
+def test_upload_with_fallbacks_success(tmp_path):
+    mock_file_path = tmp_path / "test_image.jpg"
+    mock_file_path.write_bytes(b"dummy_image_data")
+
+    with patch(
+        "Automated_AI_Instagram.src.api_clients.upload_to_catbox",
+        return_value="http://example.com/test.jpg",
+    ) as mock_upload:
+        with patch(
+            "Automated_AI_Instagram.src.api_clients.ensure_url_fetchable",
+            return_value=None,
+        ) as mock_fetch:
+            url = upload_with_fallbacks(str(mock_file_path))
+            assert url == "http://example.com/test.jpg"
+            mock_upload.assert_called_once_with(str(mock_file_path))
+            mock_fetch.assert_called_once_with("http://example.com/test.jpg")
+
+
+def test_post_image_with_rehosts_success():
+    responses = [{"id": "container_id"}, {"id": "published_id"}]
+
+    with patch(
+        "Automated_AI_Instagram.src.api_clients.post", side_effect=responses
+    ) as mock_post:
+        with patch("time.sleep", return_value=None) as mock_sleep:
+            result = post_image_with_rehosts(
+                "ig_user", "http://image", "caption", None
+            )
+
+    assert result == {"id": "published_id"}
+    assert mock_post.call_count == 2
+    mock_sleep.assert_called_once()
+
+
+def test_post_image_with_rehosts_rehost_success():
+    responses = [{}, {"id": "container_id"}, {"id": "published_id"}]
+
+    with patch(
+        "Automated_AI_Instagram.src.api_clients.post", side_effect=responses
+    ) as mock_post:
+        with patch(
+            "Automated_AI_Instagram.src.api_clients.upload_with_fallbacks",
+            return_value="http://rehosted",
+        ) as mock_upload:
+            with patch(
+                "Automated_AI_Instagram.src.api_clients.ensure_url_fetchable",
+                return_value=None,
+            ) as mock_fetch:
+                with patch("time.sleep", return_value=None) as mock_sleep:
+                    result = post_image_with_rehosts(
+                        "ig_user", "http://image", "caption", "/tmp/file"
+                    )
+
+    assert result == {"id": "published_id"}
+    assert mock_post.call_count == 3
+    mock_upload.assert_called_once_with("/tmp/file")
+    mock_fetch.assert_called_once_with("http://rehosted")
+    mock_sleep.assert_called_once()
+
+
+def test_post_image_with_rehosts_rehost_failure():
+    responses = [{}, {"id": "container_id"}, {}]
+
+    with patch(
+        "Automated_AI_Instagram.src.api_clients.post", side_effect=responses
+    ) as mock_post:
+        with patch(
+            "Automated_AI_Instagram.src.api_clients.upload_with_fallbacks",
+            return_value="http://rehosted",
+        ) as mock_upload:
+            with patch(
+                "Automated_AI_Instagram.src.api_clients.ensure_url_fetchable",
+                return_value=None,
+            ) as mock_fetch:
+                with patch("time.sleep", return_value=None):
+                    with pytest.raises(RuntimeError, match="Failed to publish media"):
+                        post_image_with_rehosts(
+                            "ig_user", "http://image", "caption", "/tmp/file"
+                        )
+
+    assert mock_post.call_count == 3
+    mock_upload.assert_called_once_with("/tmp/file")
+    mock_fetch.assert_called_once_with("http://rehosted")
+
+
+def test_post_image_with_rehosts_no_src_file():
+    with patch(
+        "Automated_AI_Instagram.src.api_clients.post", return_value={}
+    ) as mock_post:
+        with pytest.raises(
+            RuntimeError, match="Cannot rehost: no local file path provided."
+        ):
+            post_image_with_rehosts("ig_user", "http://image", "caption", None)
+
+    mock_post.assert_called_once()
