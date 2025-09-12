@@ -44,12 +44,39 @@ def resize_exact_for_instagram(
     local_path: str, width: int = 1080, height: int = 1080
 ) -> str:
     """
-    Resize to an exact size (e.g., 1080x1080) with NO borders and
-    NO aspect-ratio preservation (distorts non-square images).
+    Resize to an exact size (e.g., 1080x1080) while preserving aspect ratio.
+    Uses background blur for padding instead of solid color.
     """
     img = Image.open(local_path)
     img = ImageOps.exif_transpose(img).convert("RGB")
-    out = img.resize((int(width), int(height)), resample=Image.LANCZOS)
+    
+    # Calculate aspect ratios
+    target_ratio = width / height
+    img_ratio = img.width / img.height
+    
+    if img_ratio > target_ratio:
+        # Image is wider - fit to width
+        new_width = width
+        new_height = int(width / img_ratio)
+    else:
+        # Image is taller - fit to height
+        new_height = height
+        new_width = int(height * img_ratio)
+    
+    # Create background by scaling the image to fill and blurring it
+    background = img.copy()
+    background = background.resize((width, height), resample=Image.LANCZOS)
+    from PIL import ImageFilter
+    background = background.filter(ImageFilter.GaussianBlur(radius=30))
+    
+    # Resize main image maintaining aspect ratio
+    img = img.resize((new_width, new_height), resample=Image.LANCZOS)
+    
+    # Paste the main image onto the blurred background
+    paste_x = (width - new_width) // 2
+    paste_y = (height - new_height) // 2
+    background.paste(img, (paste_x, paste_y))
+    out = background
 
     fd, new_path = tempfile.mkstemp(prefix="ig_exact_", suffix=".jpeg")
     os.close(fd)
