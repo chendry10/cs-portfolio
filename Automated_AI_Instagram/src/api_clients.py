@@ -64,13 +64,25 @@ def get_meme_prompt_via_ai(
         "Ensure that the prompt specifies that white meme text should be used on the top and bottom of the image away from the border to avoid being cutoff."
     )
 
-    # This will raise an error and stop the script if the API call fails.
-    out = _try_responses(None, config.PRIMARY_TEXT_MODEL, sys_msg, request_text)
-    if not out:
-        raise RuntimeError(
-            f"Failed to generate prompt with primary model ({config.PRIMARY_TEXT_MODEL}). No fallbacks are configured."
-        )
-    return out
+    # Retry a few times before giving up; _try_responses returns None on failure.
+    max_attempts = 5
+    for attempt in range(1, max_attempts + 1):
+        out = _try_responses(None, config.PRIMARY_TEXT_MODEL, sys_msg, request_text)
+        if out:
+            return out
+
+        # Log and backoff before retrying
+        if attempt < max_attempts:
+            logging.warning(
+                f"Prompt generation attempt {attempt}/{max_attempts} failed; retrying..."
+            )
+            # exponential backoff (short): 1s, 1.5s, 2.25s, ...
+            time.sleep(1.5 ** (attempt - 1))
+
+    # If we reach here, all attempts failed.
+    raise RuntimeError(
+        f"Failed to generate prompt with primary model ({config.PRIMARY_TEXT_MODEL}) after {max_attempts} attempts."
+    )
 
 
 def get_meme_prompt_and_caption(
@@ -121,7 +133,7 @@ def gen_gpt_image_to_file(prompt: str, model: str = "gpt-image-1") -> str:
                 prompt=prompt,
                 n=1,
                 output_format="jpeg",
-                size="1024x1024",  # Square format works best with Instagram
+                size="1536x1024",
                 moderation="low",
                 quality="high"  # Using higher quality
             )

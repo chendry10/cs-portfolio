@@ -306,7 +306,8 @@ def test_get_meme_prompt_via_ai_no_response(monkeypatch):
             RuntimeError, match="Failed to generate prompt with primary model"
         ):
             get_meme_prompt_via_ai("test request")
-    mock_try_responses.assert_called_once()
+    # Should have retried multiple times when no response was returned
+    assert mock_try_responses.call_count == 5
 
 
 # New tests for upload_to_catbox
