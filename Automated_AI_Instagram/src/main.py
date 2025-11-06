@@ -79,10 +79,10 @@ def main() -> None:
                 )
                 logging.info(f"Saved local (jpeg): {original_image_path}")
 
-                logging.info("Resizing image for Instagram...")
-                ig_ready_path = resize_exact_for_instagram(
-                    original_image_path, width=1080, height=1080
-                )
+                logging.info("Skipping resize for Instagram; using original image")
+                # Do not resize — use the original image to avoid cropping or padding.
+                # This keeps the existing code path (ig_ready_path used later for upload)
+                ig_ready_path = original_image_path
 
                 logging.info("Uploading to host...")
                 config.TEST_IMAGE_URL = upload_with_fallbacks(ig_ready_path)
