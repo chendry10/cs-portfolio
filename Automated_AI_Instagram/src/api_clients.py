@@ -135,7 +135,7 @@ def gen_gpt_image_to_file(prompt: str, model: str = "gpt-image-1") -> str:
                 output_format="jpeg",
                 size="1536x1024",
                 moderation="low",
-                quality="medium",
+                quality="high"  # Using higher quality
             )
             data = resp.data[0]
             if not hasattr(data, "b64_json") or not data.b64_json:
