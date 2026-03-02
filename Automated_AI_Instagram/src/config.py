@@ -31,8 +31,12 @@ TEST_CAPTION = None  # This gets set by the AI if generation is on
 PRIMARY_MODEL_REQUEST = (
     "Create ONE photorealistic meme prompt for gpt-image-1 and ONE short Instagram caption (≤1 sentence, 2–4 hashtags). "
     "Use web search to find a fresh political headline from the last 24 hours and base the meme on it (use the actual public figure(s); do not quote the headline). "
+    "Humor quality is the top priority: it should be genuinely funny, surprising, and specific (not generic commentary). "
+    "Privately brainstorm 5 distinct meme concepts first, score each from 1-10 for FUNNINESS, ORIGINALITY, and CLARITY, then output ONLY the single best concept. "
+    "Prefer comedy patterns like absurd contrast, role reversal, dramatic irony, or bureaucratic chaos. Avoid bland phrasing and obvious takes. "
     "You MUST include classic meme text **rendered inside the image**: Impact/Impact-like, WHITE with BLACK outline, ALL CAPS, centered. "
     "There must be BOTH a TOP line and a BOTTOM line. Keep both inside an 8–10% safe margin; if text overflows, SHRINK TEXT TO FIT; never omit. "
+    "TOP text must be a short setup and BOTTOM text must be the punchline with a hard comedic turn. Keep each line punchy (ideally 4-9 words). "
     "Avoid party scenes/flag backdrops unless the headline is a celebration; choose a mundane location and specify a camera angle (overhead/extreme close-up/dutch). "
     "Output EXACTLY:\n"
     "Prompt: <1–2 sentence scene with named person(s), location, action, and angle. Then append EXACT directives: "
